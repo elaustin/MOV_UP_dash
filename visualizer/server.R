@@ -39,6 +39,10 @@ server <- function(input, output,session) {
    langan.data = NULL
    ptrak.data = NULL
    ptrakscreen.data =NULL
+   nanoScan.data = NULL
+   nanoSingle.data = NULL
+   Labview.data=NULL
+   filelog.data =NULL
    
     if(!is.null(input$gpsfile)){
       gps.data.list <- lapply(1:nrow(input$gpsfile), FUN = function(fileind) {
@@ -86,31 +90,100 @@ server <- function(input, output,session) {
      setkey(ptrakscreen.data, timeint, runname)
    }
    
+   if(!is.null(input$ae51)){
+     ae51.data.list <- lapply(1:nrow(input$ae51), FUN = function(fileind) {
+       read.ae51(datafile=input$ae51[[fileind, "datapath"]], 
+                  runname = getrunname(input$ae51[[fileind, "name"]]),
+                  timeaverage = as.numeric(input$usertimav)/60)
+     })
+     
+     ae51.data = rbindlist(ae51.data.list, fill=T)
+     setkey(ae51.data, timeint, runname)
+   }
+   
+   if(!is.null(input$nanoScan)){
+     nanoScan.data.list <- lapply(1:nrow(input$nanoScan), FUN = function(fileind) {
+       read.nano.scan(datafile=input$nanoScan[[fileind, "datapath"]], 
+                 runname = getrunname(input$nanoScan[[fileind, "name"]]),
+                 timeaverage = as.numeric(input$usertimav)/60)
+     })
+     
+     nanoScan.data = rbindlist(nanoScan.data.list, fill=T)
+     setkey(nanoScan.data, timeint, runname)
+   }
+   
+   if(!is.null(input$nanoSingle)){
+     nanoSingle.data.list <- lapply(1:nrow(input$nanoSingle), FUN = function(fileind) {
+       read.nano.single(datafile=input$nanoSingle[[fileind, "datapath"]], 
+                 runname = getrunname(input$nanoSingle[[fileind, "name"]]),
+                 timeaverage = as.numeric(input$usertimav)/60)
+     })
+     
+     nanoSingle.data = rbindlist(nanoSingle.data.list, fill=T)
+     setkey(nanoSingle.data, timeint, runname)
+   }
+   
+   if(!is.null(input$Labview)){
+     Labview.data.list <- lapply(1:nrow(input$Labview), FUN = function(fileind) {
+       read.labview(datafile=input$Labview[[fileind, "datapath"]], 
+                        runname = getrunname(input$Labview[[fileind, "name"]]),
+                        timeaverage = as.numeric(input$usertimav)/60)
+     })
+     
+     Labview.data = rbindlist(Labview.data.list, fill=T)
+     setkey(Labview.data, timeint, runname)
+   }
+   
+   
+   
    if(!is.null(input$filelog)){
      filelog.data.list <- lapply(1:nrow(input$filelog), FUN = function(fileind) {
        read.ptrak(datafile=input$filelog[[fileind, "datapath"]], 
                   runname = getrunname(input$filelog[[fileind, "name"]]),
-                  timeaverage = as.numeric(input$usertimav)/60,
-                  screen=T)
+                  timeaverage = as.numeric(input$usertimav)/60)
      })
      
      filelog.data = rbindlist(filelog.data.list, fill=T)
      setkey(filelog.data, timeint, runname)
    }
    
-   indexval = c(!is.null(gps.data),!is.null(langan.data), !is.null(ptrak.data), !is.null(ptrak.data))
+   indexval = c(!is.null(gps.data),
+                !is.null(langan.data), 
+                !is.null(ptrak.data), 
+                !is.null(ptrakscreen.data),
+                !is.null(nanoScan.data),
+                !is.null(nanoSingle.data),
+                !is.null(Labview.data),
+                !is.null(filelog.data)
+                )
    
    merge.all <- function(x, y) {
      merge(x, y, all=TRUE)
    }
    
-   output <- Reduce(merge.all, list(gps.data, langan.data, ptrak.data, ptrakscreen.data)[indexval])
+   output <- Reduce(merge.all, list(gps.data, langan.data, ptrak.data, ptrakscreen.data,
+                                    nanoScan.data, nanoSingle.data,
+                                    Labview.data, filelog.data)[indexval])
    try(
    output[,pnc_diff := pnc_noscreen - pnc_screen],
    silent=T)
    
    return(output)
    
+   #add nano scan single mode (timestamp is the end of the interval) (DONE)
+   #add nano scan scanning mode (timestamp is the beginning of the interval) (DONE)
+   #add labview gps and CO2 (bu353) new GPS is (dg500) labview is end of the 10 second int (DONE)
+   #import weather data from airport? 
+   #AE51 time stamp end of interval (ng/m3) in BC column (DONE)
+   #could you create an E/W concentration gradient, maybe compare to ?
+   #ratio of pdif/bc add to file
+   #change color scale 
+   #add boxcar values
+   #incude wind rose conditional on threshold pollutant value
+   #using windspeed to triangulate source?
+   #indentify longitude bands, derive summary statistics for each 
+   #get 18th of august windrose
+   #get october 3rd windrose
   })
   
   
