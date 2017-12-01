@@ -6,13 +6,7 @@ options(shiny.maxRequestSize = 20*1024^2)
 
 # Create the map
 
-
-
-
 server <- function(input, output,session) {
-  
-  
-  
   
   output$map1 <- renderLeaflet(env=parent.frame(sys.nframe()), {
     leaflet() %>%
@@ -39,6 +33,7 @@ server <- function(input, output,session) {
    langan.data = NULL
    ptrak.data = NULL
    ptrakscreen.data =NULL
+   ae51.data= NULL
    nanoScan.data = NULL
    nanoSingle.data = NULL
    Labview.data=NULL
@@ -151,6 +146,7 @@ server <- function(input, output,session) {
                 !is.null(langan.data), 
                 !is.null(ptrak.data), 
                 !is.null(ptrakscreen.data),
+                !is.null(ae51.data),
                 !is.null(nanoScan.data),
                 !is.null(nanoSingle.data),
                 !is.null(Labview.data),
@@ -162,6 +158,7 @@ server <- function(input, output,session) {
    }
    
    output <- Reduce(merge.all, list(gps.data, langan.data, ptrak.data, ptrakscreen.data,
+                                    ae51.data,
                                     nanoScan.data, nanoSingle.data,
                                     Labview.data, filelog.data)[indexval])
    try(
@@ -176,9 +173,10 @@ server <- function(input, output,session) {
    #import weather data from airport? 
    #AE51 time stamp end of interval (ng/m3) in BC column (DONE)
    #could you create an E/W concentration gradient, maybe compare to ?
-   #ratio of pdif/bc add to file
+   #ratio of pdif/bc add to file 
    #change color scale 
-   #add boxcar values
+   #add boxcar values 
+   #add interpolation
    #incude wind rose conditional on threshold pollutant value
    #using windspeed to triangulate source?
    #indentify longitude bands, derive summary statistics for each 

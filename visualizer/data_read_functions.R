@@ -17,6 +17,17 @@ averageTime <- function (datetime, timeaverage) {
   as.POSIXct(ceiling(as.numeric(datetime)/(timeaverage*60))*(timeaverage*60),origin='1970-01-01')
 }
 
+fread2 <- function(filename) {
+  tmp <- scan(file = filename, what = "character", sep="\t",quiet = TRUE,nlines=1)
+  # remove empty lines caused by \r
+  tmp <- tmp[tmp != ""]
+  # paste lines back together together with \n character
+  tmp <- paste(tmp, collapse = "\n")
+  test = fread(tmp,fill=TRUE)
+  test
+}
+
+
 read.gps <- function(datafile, runname, timeaverage) {
   
   dt <- fread(datafile)
@@ -90,7 +101,8 @@ read.ae51 <- function(datafile, runname, timeaverage) {
   
   dt = 
     dt[,lapply(.SD, mean), by=c("timeint","runname"), 
-       .SDcols=c("Latitude","Longitude","Altitude (m)","Speed (km/hr)")]
+       .SDcols=c("Ref","Sen","ATN","Flow","PCB.temp","Status","Battery",
+                 "BC")]
   
   return(dt)
 }
@@ -98,10 +110,30 @@ read.ae51 <- function(datafile, runname, timeaverage) {
 
 read.labview <- function(datafile, runname, timeaverage) {
   
-  dt <- fread(datafile)
+  dt <- data.table(read.table(datafile,sep="\t", header=T))
+  
+  dt = dt[,which(unlist(lapply(dt, function(x)!all(is.na(x))))),with=F]
+  
+  cols.labview=c("Computer Time Stamp",
+                 "Marker",
+                 "GPS  Mode, 1=nofix, 2=2D, 3=3D",
+                 "GPS  No. of Active Satellites",
+                 "GPS  Hor. Precision (HDOP)",
+                 "GPS  Time Stamp",
+                 "GPS  Latitude (deg)",
+                 "GPS  Longitude (deg)",
+                 "GPS  Speed (km/h)",
+                 "GPS  Direction (deg)",
+                 "Time NO",
+                 "Time NOx",
+                 "AE52 Time",
+                 "AE52Flow","AE52Status",
+                 "Precon HS-2000 Temp (°C)",
+                 "Precon HS-2000 RH (%)",
+                 "SenseAir CO2 conc. (ppm)")
+  
   keep.labview=c("Computer Time Stamp",
                  "Marker",
-                 "Beg/End of Segment",
                  "GPS  Mode, 1=nofix, 2=2D, 3=3D",
                  "GPS  No. of Active Satellites",
                  "GPS  Hor. Precision (HDOP)",
@@ -114,6 +146,8 @@ read.labview <- function(datafile, runname, timeaverage) {
                  "Precon HS-2000 RH (%)",
                  "SenseAir CO2 conc. (ppm)")
   
+  setnames(dt, colnames(dt),cols.labview)
+  
   num.labview=c( "GPS  No. of Active Satellites",
                  "GPS  Time Stamp",
                  "GPS  Latitude (deg)",
@@ -124,9 +158,7 @@ read.labview <- function(datafile, runname, timeaverage) {
                  "Precon HS-2000 RH (%)",
                  "SenseAir CO2 conc. (ppm)")
   
-  dt = dt[,keep.labview,with=F]
-
-
+  
   dt[, datetime.labview := as.POSIXct(`Computer Time Stamp`,
                                       format="%d/%m/%Y %I:%M:%S %p",
                                       tz="America/Los_Angeles")]
@@ -174,7 +206,7 @@ read.nano.single <- function(datafile, runname, timeaverage) {
   start.time = as.POSIXct(paste(startval, timeval), tz="America/Los_Angeles")
   dt <- read.csv(datafile,skip=14, header=T)
   dt = data.table(dt)
-  setnames(dt,names(dt), c("Time elapsed","number/cc","status"))
+  setnames(dt,names(dt), c("Time elapsed","single channel number/cc","status"))
   
   dt[,iteration := -999]
   dt$iteration[1] = 1
@@ -198,20 +230,15 @@ read.nano.single <- function(datafile, runname, timeaverage) {
   
   dt = dt[timecorr]
   
+  dt[, runname := runname]
+  
   dt[,`Time elapsed` := as.numeric(as.character(`Time elapsed`))]
   
-  dt = dt[!is.na(`Time elapsed`)]
+  dt = dt[!is.na(`Time elapsed`),]
   
-  dt[,datetime := datetime + 'Time elapsed']
+  dt[,datetime := datetime + `Time elapsed`]
   
-  dt[, datetime.nano.scan := as.POSIXct(`Date Time`, tz="America/Los_Angeles")]
-  #correct so time is at the end of the interval
-  dt[, datetime.nano.scan := datetime.nano.scan + 60]
-  dt[, runname := runname]
-  dt[,`Date Time`:= NULL]
-  #get Correct time average
-  
-  dt[,timeint := averageTime(datetime.nano.scan, timeaverage)]
+  dt[,timeint := averageTime(datetime, timeaverage)]
   
   dt[,iteration := NULL]
   dt[, `Time elapsed` := NULL]
@@ -219,7 +246,10 @@ read.nano.single <- function(datafile, runname, timeaverage) {
   dt[,Time :=NULL]
   
   dt = 
-    dt[,lapply(.SD, mean), by=c("timeint","runname","Status")]
+    dt[,lapply(.SD, FUN = 
+                 function(x) mean(as.numeric(as.character(x)))), 
+                                  by=c("timeint", "status", "runname"),
+       .SDcols = c("single channel number/cc")]
   
   return(dt)
 }
