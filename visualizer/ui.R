@@ -95,7 +95,7 @@ shinyUI(navbarPage("MOV-UP Data Import", id="nav",
                                       
                                       dateRangeInput("Dates",
                                                      "Date Range:", min="2017-07-01"),
-                                      sliderInput("ylimpm", "Select Maximum PM2.5 to plot",min=0,max=200,step=10, value=80)
+                                      sliderInput("ylimpm", "Select Maximum PNC Diff to plot",min=0,max=50000,step=100, value=10000)
                                       # selectInput("colors", "Color Scheme",
                                       #             rownames(subset(brewer.pal.info, category %in% c("seq", "div"))),
                                       # checkboxInput("legend", "Show legend", TRUE)

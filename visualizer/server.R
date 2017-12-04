@@ -70,7 +70,13 @@ server <- function(input, output,session) {
      })
      
      ptrak.data = rbindlist(ptrak.data.list, fill=T)
+     
+     ptrak.data = ptrak.data[, lapply(.SD, mean) , by = c("timeint","runname")]
+     
      setkey(ptrak.data, timeint, runname)
+     
+     
+  
    }
    
    if(!is.null(input$ptrakscreen)){
@@ -82,6 +88,7 @@ server <- function(input, output,session) {
      })
      
      ptrakscreen.data = rbindlist(ptrak.screen.data.list, fill=T)
+     ptrakscreen.data = ptrakscreen.data[, lapply(.SD, mean) , by = c("timeint","runname")]
      setkey(ptrakscreen.data, timeint, runname)
    }
    
@@ -191,51 +198,51 @@ server <- function(input, output,session) {
     # input$file1 will be NULL initially. After the user selects
     # and uploads a file, head of that data file by default,
     # or all rows if selected, will be shown.
-    mydata<<-data()
+    mydata <<- data()
     
     return( apply(mydata[1:max(input$rowsn),],2, as.character))
     
   })
   
   
-  # output$tsplot <- renderPlot({
-  #   
-  #   
-  #   if (is.null(df)) {
-  #     
-  #     ggplot() + 
-  #       annotate("text", 
-  #                x = 4, y = 25, size=8, color="darkgrey",
-  #                label = "Please Load Data.") + 
-  #       theme_bw() +
-  #       theme(panel.grid.major=element_blank(),
-  #             panel.grid.minor=element_blank())+
-  #       theme(line = element_blank(),
-  #             text = element_blank(),
-  #             title = element_blank())
-  #     
-  #   } else  {
-  #     
-  #     plotdata=data()
-  #     
-  #     p1 <- ggplot(plotdata, 
-  #                  aes(as.POSIXct(localdatetime), as.numeric(as.character(pm25m)), color=monitor)) + 
-  #       ylab( expression(paste("PM"[2.5], " (", mu, "g/", m^3, ")")) ) + xlab("Time") +
-  #       theme_light(12)+ ylim(0, as.numeric(as.character(input$ylimpm)) )+
-  #       xlim(as.POSIXct(input$Dates[1],origin="1970-01-01"), as.POSIXct(input$Dates[2],origin="1970-01-01"))
-  #     
-  #     p1 + geom_point(alpha =0.3, cex=.75)  + 
-  #       #scale_x_datetime(date_breaks ="2 day", date_labels = "%m/%d") +
-  #       #geom_point(data=df, aes(as.POSIXct(datetime), outdoorPM2.5, color="Outdoor"), size=.75) + 
-  #       
-  #       guides(colour = guide_legend(override.aes = list(size=6)))
-  #   }
-  #   
-  # })
+  output$tsplot <- renderPlot({
+    df = data()
+
+    if (is.null(df)) {
+
+      ggplot() +
+        annotate("text",
+                 x = 4, y = 25, size=8, color="darkgrey",
+                 label = "Please Load Data.") +
+        theme_bw() +
+        theme(panel.grid.major=element_blank(),
+              panel.grid.minor=element_blank())+
+        theme(line = element_blank(),
+              text = element_blank(),
+              title = element_blank())
+
+    } else  {
+
+      plotdata=data()
+
+      p1 <- ggplot(plotdata,
+                   aes(as.POSIXct(timeint), as.numeric(as.character(pnc_diff)), color=runname)) +
+        ylab( "Particle Count Difference (#/cc)" ) + xlab("Time") +
+        theme_light(12)+ ylim(0, as.numeric(as.character(input$ylimpm)) )+
+        xlim(as.POSIXct(input$Dates[1],origin="1970-01-01"), as.POSIXct(input$Dates[2],origin="1970-01-01"))
+
+      p1 + geom_point(alpha =0.3, cex=.75)  +
+        #scale_x_datetime(date_breaks ="2 day", date_labels = "%m/%d") +
+        #geom_point(data=df, aes(as.POSIXct(datetime), outdoorPM2.5, color="Outdoor"), size=.75) +
+
+        guides(colour = guide_legend(override.aes = list(size=6)))
+    }
+
+  })
   
   output$downloadData <- downloadHandler(
     filename = function() {
-      paste("mydata", ".csv", sep = "")
+      paste("MOVUPdatamerge", ".csv", sep = "")
     },
     content = function(con) {
       write.csv(data(), con, row.names = FALSE)
