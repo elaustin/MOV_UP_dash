@@ -16,7 +16,7 @@ shinyUI(navbarPage("MOV-UP Data Import", id="nav",
                                     # Sidebar panel for inputs ----
                                     sidebarPanel(
                                       
-                                      selectInput("usertimav",label=h4("Select Time Averaging"),
+                                      selectInput("usertimav",label="Data Options",
                                                   choices = c("1 Second" = 1,
                                                               "10 Second" = 	10,
                                                               "30 Second" = 30,
@@ -24,6 +24,11 @@ shinyUI(navbarPage("MOV-UP Data Import", id="nav",
                                                               "5 Minute" = 60*5,
                                                               "10 Minute" = 60*10,
                                                               "1 Hour" = 60*60), selected = 10),
+                                      
+                                      checkboxGroupInput("dataoptions",  label = NULL,
+                                                    c("Fill in missing values" = "missing",
+                                                      "Include KSEA weather" = "ksea")),
+                                      tags$hr(),
 
                                       # Input: Select a file ----
                                       em("Use Ctrl to select mutliple files."),

@@ -28,7 +28,7 @@ fread2 <- function(filename) {
 }
 
 
-read.gps <- function(datafile, runname, timeaverage) {
+read.gps <- function(datafile, runname, timeaverage, splineval = T) {
   
   dt <- fread(datafile)
   dt[, datetime.gps := as.POSIXct(paste0(Date,`Time (local)`), tz="America/Los_Angeles")]
@@ -37,16 +37,25 @@ read.gps <- function(datafile, runname, timeaverage) {
   dt[,`Time (local)` := NULL]
   #get Correct time average
   
-  dt[,timeint := averageTime(datetime.gps, timeaverage)]
+   dt[,timeint := averageTime(datetime.gps, timeaverage)]
   
   dt = 
     dt[,lapply(.SD, mean), by=c("timeint","runname"), 
        .SDcols=c("Latitude","Longitude","Altitude (m)","Speed (km/hr)")]
   
+  if(splineval) {
+    
+    transcol = c("Latitude","Longitude","Altitude (m)","Speed (km/hr)")
+    dt[, (transcol)  := 
+         lapply(.SD, function(x)
+           na.spline(x, na.rm=F)), .SDcols = transcol ]
+  }
+  
+
   return(dt)
 }
 
-read.langan <- function(datafile, runname, timeaverage) {
+read.langan <- function(datafile, runname, timeaverage, splineval = T) {
   
   dt <- fread(datafile, skip=1,na.string="")
   dt[, `#` := NULL]
@@ -59,14 +68,23 @@ read.langan <- function(datafile, runname, timeaverage) {
   setnames(dt, grep("Temp", colnames(dt), value=T), "TempC" )
   setnames(dt, grep("Stopped", colnames(dt), value=T), "Stopped")
   
+  
+  
   dt[,timeint := averageTime(datetime.langan, timeaverage)]
   dt = 
     dt[,lapply(.SD, mean), by=c("timeint","runname"), .SDcols=c("TempC","CO")]
   
+  if(splineval) {
+    
+    transcol = c("CO","TempC")
+    dt[, (transcol)  := 
+         lapply(.SD, function(x)
+           na.spline(x, na.rm=F)), .SDcols = transcol ]
+  }
   return(dt)
 }
 
-read.ptrak <- function(datafile, runname, timeaverage, screen=F) {
+read.ptrak <- function(datafile, runname, timeaverage, screen=F,  splineval = T) {
   
   dt <- fread(datafile, skip=30)
   pncname = ifelse(screen, "pnc_screen","pnc_noscreen")
@@ -77,6 +95,7 @@ read.ptrak <- function(datafile, runname, timeaverage, screen=F) {
   dt[, Time := NULL]
   #get Correct time average
   
+  
   dt[,timeint := averageTime(datetime.ptrak, timeaverage)]
   
   dt = 
@@ -85,10 +104,18 @@ read.ptrak <- function(datafile, runname, timeaverage, screen=F) {
       by=c("timeint","runname"), 
        .SDcols=c(pncname)]
   
+  if(splineval) {
+    
+    transcol = c(pncname)
+    dt[, (transcol)  := 
+         lapply(.SD, function(x)
+           na.spline(x, na.rm=F)), .SDcols = transcol ]
+  }
+  
   return(dt)
 }
 
-read.ae51 <- function(datafile, runname, timeaverage) {
+read.ae51 <- function(datafile, runname, timeaverage,  splineval = T) {
   
   dt <- data.table(read.table(datafile,sep=";", skip=15, header=T))
   dt[, datetime.ae51 := as.POSIXct(paste0(Date,`Time`), tz="America/Los_Angeles")]
@@ -97,12 +124,22 @@ read.ae51 <- function(datafile, runname, timeaverage) {
   dt[,`Time` := NULL]
   #get Correct time average
   
+  
   dt[,timeint := averageTime(datetime.ae51, timeaverage)]
   
   dt = 
     dt[,lapply(.SD, mean), by=c("timeint","runname"), 
        .SDcols=c("Ref","Sen","ATN","Flow","PCB.temp","Status","Battery",
                  "BC")]
+  
+  if(splineval) {
+    
+    transcol = c("Ref","Sen","ATN","Flow","PCB.temp","Status","Battery",
+                 "BC")
+    dt[, (transcol)  := 
+         lapply(.SD, function(x)
+           na.spline(x, na.rm=F )), .SDcols = transcol ]
+  }
   
   return(dt)
 }
@@ -177,10 +214,18 @@ read.labview <- function(datafile, runname, timeaverage) {
     dt[,lapply(.SD, mean), by=c("timeint","runname"), 
        .SDcols=num.labview]
   
+  if(splineval) {
+    
+    transcol = num.labview
+    dt[, (transcol)  := 
+         lapply(.SD, function(x)
+           na.spline(x, na.rm=F)), .SDcols = transcol ]
+  }
+  
   return(dt)
 }
 
-read.nano.scan <- function(datafile, runname, timeaverage) {
+read.nano.scan <- function(datafile, runname, timeaverage, splineval=T) {
   
   dt <- fread(datafile,skip=2, header=T)
   dt[, datetime.nano.scan := as.POSIXct(`Date Time`, tz="America/Los_Angeles")]
@@ -190,15 +235,28 @@ read.nano.scan <- function(datafile, runname, timeaverage) {
   dt[,`Date Time`:= NULL]
   #get Correct time average
   
-  dt[,timeint := averageTime(datetime.nano.scan, timeaverage)]
+  
+  dt[,timeint := averageTime(datetime.nano.scan, timeaverage, splineval=T)]
   
   dt = 
     dt[,lapply(.SD, mean), by=c("timeint","runname","Status")]
   
+  if(splineval) {
+    
+    transcol = c("15.4","20.5","27.4","36.5","48.7","64.9",
+                 "86.6","115.5","154.0","205.4","273.8","365.2" ,
+                 "Total Conc", "Median (nm)","Mean (nm)",
+                 "Geo Mean (nm)", "Mode (nm)", "GSD",
+                 "Particle Density (g/cc)")
+    dt[, (transcol)  := 
+         lapply(.SD, function(x)
+           na.spline(x, na.rm=F)), .SDcols = transcol ]
+  }
+  
   return(dt)
 }
 
-read.nano.single <- function(datafile, runname, timeaverage) {
+read.nano.single <- function(datafile, runname, timeaverage, splineval=T) {
   
   #get datetime
   startval= read.csv(datafile, skip=7, nrow=1,colClasses="character")[2]
@@ -250,6 +308,15 @@ read.nano.single <- function(datafile, runname, timeaverage) {
                  function(x) mean(as.numeric(as.character(x)))), 
                                   by=c("timeint", "status", "runname"),
        .SDcols = c("single channel number/cc")]
+  
+  if(splineval) {
+    
+    transcol = c("single channel number/cc")
+    dt[, (transcol)  := 
+         lapply(.SD, function(x)
+           na.spline(x, na.rm=F)), .SDcols = transcol ]
+  }
+  
   
   return(dt)
 }

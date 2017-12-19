@@ -1,7 +1,9 @@
 library(pacman)
 
 p_load("shiny","shinythemes","foreign","data.table","leaflet","leaflet.extras",
-       "zoo","ggplot2")
+       "zoo","ggplot2", "riem")
+
 source("data_read_functions.R")
+source("get_external_data.R")
 
 df=NULL

@@ -38,12 +38,14 @@ server <- function(input, output,session) {
    nanoSingle.data = NULL
    Labview.data=NULL
    filelog.data =NULL
+   weatherdata = NULL
    
     if(!is.null(input$gpsfile)){
       gps.data.list <- lapply(1:nrow(input$gpsfile), FUN = function(fileind) {
         read.gps(datafile=input$gpsfile[[fileind, "datapath"]], 
                  runname = getrunname(input$gpsfile[[fileind, "name"]]),
-                 timeaverage = as.numeric(input$usertimav)/60)
+                 timeaverage = as.numeric(input$usertimav)/60,
+                 splineval= "missing" %in% input$dataoptions)
       })
       
       gps.data = rbindlist(gps.data.list, fill=T)
@@ -54,7 +56,8 @@ server <- function(input, output,session) {
         langan.data.list <- lapply(1:nrow(input$LanganCO), FUN = function(fileind) {
           read.langan(datafile=input$LanganCO[[fileind, "datapath"]], 
                    runname = getrunname(input$LanganCO[[fileind, "name"]]),
-                   timeaverage = as.numeric(input$usertimav)/60)
+                   timeaverage = as.numeric(input$usertimav)/60,
+                   splineval= "missing" %in% input$dataoptions )
         })
         
        langan.data = rbindlist(langan.data.list, fill=T)
@@ -66,7 +69,8 @@ server <- function(input, output,session) {
        read.ptrak(datafile=input$ptrak[[fileind, "datapath"]], 
                 runname = getrunname(input$ptrak[[fileind, "name"]]),
                 timeaverage = as.numeric(input$usertimav)/60,
-                screen = F)
+                screen = F,
+                splineval= "missing" %in% input$dataoptions )
      })
      
      ptrak.data = rbindlist(ptrak.data.list, fill=T)
@@ -84,7 +88,8 @@ server <- function(input, output,session) {
        read.ptrak(datafile=input$ptrakscreen[[fileind, "datapath"]], 
                   runname = getrunname(input$ptrakscreen[[fileind, "name"]]),
                   timeaverage = as.numeric(input$usertimav)/60,
-                  screen=T)
+                  screen=T,
+                  splineval= "missing" %in% input$dataoptions )
      })
      
      ptrakscreen.data = rbindlist(ptrak.screen.data.list, fill=T)
@@ -96,7 +101,8 @@ server <- function(input, output,session) {
      ae51.data.list <- lapply(1:nrow(input$ae51), FUN = function(fileind) {
        read.ae51(datafile=input$ae51[[fileind, "datapath"]], 
                   runname = getrunname(input$ae51[[fileind, "name"]]),
-                  timeaverage = as.numeric(input$usertimav)/60)
+                  timeaverage = as.numeric(input$usertimav)/60,
+                 splineval= "missing" %in% input$dataoptions )
      })
      
      ae51.data = rbindlist(ae51.data.list, fill=T)
@@ -107,7 +113,8 @@ server <- function(input, output,session) {
      nanoScan.data.list <- lapply(1:nrow(input$nanoScan), FUN = function(fileind) {
        read.nano.scan(datafile=input$nanoScan[[fileind, "datapath"]], 
                  runname = getrunname(input$nanoScan[[fileind, "name"]]),
-                 timeaverage = as.numeric(input$usertimav)/60)
+                 timeaverage = as.numeric(input$usertimav)/60,
+                 splineval= "missing" %in% input$dataoptions)
      })
      
      nanoScan.data = rbindlist(nanoScan.data.list, fill=T)
@@ -118,7 +125,8 @@ server <- function(input, output,session) {
      nanoSingle.data.list <- lapply(1:nrow(input$nanoSingle), FUN = function(fileind) {
        read.nano.single(datafile=input$nanoSingle[[fileind, "datapath"]], 
                  runname = getrunname(input$nanoSingle[[fileind, "name"]]),
-                 timeaverage = as.numeric(input$usertimav)/60)
+                 timeaverage = as.numeric(input$usertimav)/60,
+                 splineval= "missing" %in% input$dataoptions)
      })
      
      nanoSingle.data = rbindlist(nanoSingle.data.list, fill=T)
@@ -129,25 +137,26 @@ server <- function(input, output,session) {
      Labview.data.list <- lapply(1:nrow(input$Labview), FUN = function(fileind) {
        read.labview(datafile=input$Labview[[fileind, "datapath"]], 
                         runname = getrunname(input$Labview[[fileind, "name"]]),
-                        timeaverage = as.numeric(input$usertimav)/60)
+                        timeaverage = as.numeric(input$usertimav)/60,
+                    splineval= "missing" %in% input$dataoptions)
      })
      
      Labview.data = rbindlist(Labview.data.list, fill=T)
      setkey(Labview.data, timeint, runname)
    }
    
-   
-   
    if(!is.null(input$filelog)){
      filelog.data.list <- lapply(1:nrow(input$filelog), FUN = function(fileind) {
        read.ptrak(datafile=input$filelog[[fileind, "datapath"]], 
                   runname = getrunname(input$filelog[[fileind, "name"]]),
-                  timeaverage = as.numeric(input$usertimav)/60)
+                  timeaverage = as.numeric(input$usertimav)/60,
+                  splineval= "missing" %in% input$dataoptions)
      })
      
      filelog.data = rbindlist(filelog.data.list, fill=T)
      setkey(filelog.data, timeint, runname)
    }
+   
    
    indexval = c(!is.null(gps.data),
                 !is.null(langan.data), 
@@ -168,9 +177,30 @@ server <- function(input, output,session) {
                                     ae51.data,
                                     nanoScan.data, nanoSingle.data,
                                     Labview.data, filelog.data)[indexval])
+   
+   if("ksea" %in% input$dataoptions){
+     weatherdata <- get_ASOS(date_start=format(min(output$timeint), "%Y-%m-%d"),
+                             date_end = format(max(output$timeint), "%Y-%m-%d"))
+     setkey(weatherdata, timeint)
+     
+     output = weatherdata[output]
+     
+   }
+   
+   if("missing" %in% input$dataoptions)
+     
+     output[, (which(sapply(output, is.numeric))) :=
+            lapply(.SD, function(x)
+       na.spline(x, na.rm=F, maxgap=10)),
+                   , .SDcols = which(sapply(output, is.numeric))]
+   
    try(
    output[,pnc_diff := pnc_noscreen - pnc_screen],
    silent=T)
+   
+   try(
+     output[,ratio := pnc_diff / BC],
+     silent=T)
    
    return(output)
    
