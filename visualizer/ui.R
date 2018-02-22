@@ -34,7 +34,8 @@ shinyUI(navbarPage("MOV-UP Data Import", id="nav",
                                       em("Use Ctrl to select mutliple files."),
                                       fileInput("gpsfile", "Select GPS data files",
                                                 multiple = TRUE,
-                                                accept = c(".csv")),
+                                                accept = c(".csv"), 
+                                                placeholder = "No file selected"),
                                       fileInput("LanganCO", "Select Langan CO data files",
                                                 multiple = TRUE,
                                                 accept = c(".csv")),
@@ -51,9 +52,9 @@ shinyUI(navbarPage("MOV-UP Data Import", id="nav",
                                       fileInput("filelog", "Insert Operator Log File", accept=c(".csv")),
                                       
                                       actionButton("mergeButton","Merge!"),
-                                      downloadButton("downloadData", "Download"),
-                                      tags$hr(),
-                                      sliderInput("rowsn", "Select number of rows to display",min=0,max=150,step=10, value=10)
+                                      downloadButton("downloadData", "Download")
+                                      
+                                      
                                       
                                       
                                       
@@ -83,7 +84,7 @@ shinyUI(navbarPage("MOV-UP Data Import", id="nav",
                                     mainPanel(
                                       
                                       # Output: Data file ----
-                                      tableOutput("contents")
+                                      dataTableOutput("contents")
                                       
                                     )
                                   )
@@ -98,9 +99,7 @@ shinyUI(navbarPage("MOV-UP Data Import", id="nav",
                                   sidebarLayout(
                                     sidebarPanel(
                                       
-                                      dateRangeInput("Dates",
-                                                     "Date Range:", min="2017-07-01"),
-                                      sliderInput("ylimpm", "Select Maximum PNC Diff to plot",min=0,max=50000,step=100, value=10000)
+                                    
                                       # selectInput("colors", "Color Scheme",
                                       #             rownames(subset(brewer.pal.info, category %in% c("seq", "div"))),
                                       # checkboxInput("legend", "Show legend", TRUE)
@@ -110,7 +109,12 @@ shinyUI(navbarPage("MOV-UP Data Import", id="nav",
                                     
                                     mainPanel(
                                       
-                                      plotOutput("tsplot", height = 400)
+                                      plotOutput("tsplot", height = 400,
+                                                 dblclick = "tsplot_dblclick",
+                                                 brush = brushOpts(
+                                                   id = "tsplot_brush",
+                                                   resetOnNew = TRUE
+                                                 ))
                                     )
                                   )
                                 )

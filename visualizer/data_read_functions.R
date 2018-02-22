@@ -4,6 +4,12 @@
 #
 #####################
 
+#ptrack file headers restart when power turns off?
+#can you select multiple nanoscan files at the same time?
+#for the ptrack, how do you select 
+#CPC add multiple files at the same time
+
+
 gpsfilename<-"C:\\Users\\Johnathan\\OneDrive\\Documents\\UW Postdoc\\MOVUP\\Oct 31\\Air monitor GPS 2017Oct31 airportN,Mgnsn.csv"
 
 

@@ -8,6 +8,8 @@ options(shiny.maxRequestSize = 20*1024^2)
 
 server <- function(input, output,session) {
   
+  
+  
   output$map1 <- renderLeaflet(env=parent.frame(sys.nframe()), {
     leaflet() %>%
       addTiles(
@@ -23,9 +25,9 @@ server <- function(input, output,session) {
     colorNumeric(input$colors, df$monitor)
   })
   
- data <- reactive({ 
+ data <- eventReactive(input$mergeButton, { 
     
-   req(input$mergeButton)
+   #req(input$mergeButton)
     #req(input$file1) ## ?req #  require that the input is available
     #input$mergeButton
    
@@ -220,9 +222,9 @@ server <- function(input, output,session) {
    #get 18th of august windrose
    #get october 3rd windrose
   })
+
   
-  
-  output$contents <- renderTable({
+  output$contents <- renderDataTable({
     
     req(input$mergeButton)
     # input$file1 will be NULL initially. After the user selects
@@ -230,10 +232,23 @@ server <- function(input, output,session) {
     # or all rows if selected, will be shown.
     mydata <<- data()
     
-    return( apply(mydata[1:max(input$rowsn),],2, as.character))
+    return( mydata)
     
   })
   
+  output$Dates <- renderUI({
+    if(req(input$mergeButton)){
+      dateRangeInput("Dates", "Date Range:",
+                start=min(as.POSIXct(mydata$timeint), na.rm=T),
+                end = max(as.POSIXct(mydata$timeint), na.rm=T))
+    } else {
+      dateRangeInput("Dates", "Date Range:",
+                     min="2017-07-01")
+    }
+      
+                })
+  
+  ranges <- reactiveValues(x = NULL, y = NULL)
   
   output$tsplot <- renderPlot({
     df = data()
@@ -249,7 +264,8 @@ server <- function(input, output,session) {
               panel.grid.minor=element_blank())+
         theme(line = element_blank(),
               text = element_blank(),
-              title = element_blank())
+              title = element_blank()) +
+        coord_cartesian(xlim = ranges$x, ylim = ranges$y, expand = FALSE)
 
     } else  {
 
@@ -258,16 +274,37 @@ server <- function(input, output,session) {
       p1 <- ggplot(plotdata,
                    aes(as.POSIXct(timeint), as.numeric(as.character(pnc_diff)), color=runname)) +
         ylab( "Particle Count Difference (#/cc)" ) + xlab("Time") +
-        theme_light(12)+ ylim(0, as.numeric(as.character(input$ylimpm)) )+
-        xlim(as.POSIXct(input$Dates[1],origin="1970-01-01"), as.POSIXct(input$Dates[2],origin="1970-01-01"))
+        theme_light(12)
 
-      p1 + geom_point(alpha =0.3, cex=.75)  +
-        #scale_x_datetime(date_breaks ="2 day", date_labels = "%m/%d") +
-        #geom_point(data=df, aes(as.POSIXct(datetime), outdoorPM2.5, color="Outdoor"), size=.75) +
-
-        guides(colour = guide_legend(override.aes = list(size=6)))
+     p1 <- p1 + geom_point(alpha =0.3, cex=2)  +
+        guides("",colour = guide_legend(override.aes = list(size=6))) +
+              
+       geom_segment(data = plotdata[seq(1,nrow(plotdata), by=60),],
+                     size = 3,
+                     aes(x = as.POSIXct(timeint),
+                         xend = as.POSIXct(timeint)+60*60,
+                         y = 10,
+                         yend = `drct`),
+                     arrow = arrow(length = unit(0.5, "cm")))
+     
+     p1 +   coord_x_datetime(xlim = (ranges$x))+
+       scale_y_continuous(limits = (ranges$y)) 
+        
+      
     }
 
+  })
+  
+  observeEvent(input$tsplot_dblclick, {
+    brush <- input$tsplot_brush
+    if (!is.null(brush)) {
+      ranges$x <- c(brush$xmin, brush$xmax)
+      ranges$y <- c(brush$ymin, brush$ymax)
+      
+    } else {
+      ranges$x <- NULL
+      ranges$y <- NULL
+    }
   })
   
   output$downloadData <- downloadHandler(
@@ -311,7 +348,7 @@ server <- function(input, output,session) {
       addHeatmap(~lon, ~lat, radius = 3, intensity = mapdata$poll, gradient = pal2(mapdata$poll), blur = 2,
                  data=mapdata, minOpacity=.1)  %>% 
       setView(median(mapdata$lon, na.rm=T),median(mapdata$lat, na.rm=T), zoom=11)  %>%
-    addLegend("topleft", pal=pal2, values=mapdata$poll, title=pollutant,
+      leaflet::addLegend("topleft", pal=pal2, values=mapdata$poll, title=pollutant,
               layerId="colorLegend",na.label = "No Data", opacity=1)
       # 
       # addCircleMarkers(~lon, ~lat , radius=7,
