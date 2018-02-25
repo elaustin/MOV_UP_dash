@@ -36,6 +36,7 @@ server <- function(input, output,session) {
    ptrak.data = NULL
    ptrakscreen.data =NULL
    ae51.data= NULL
+   cpc.data=NULL
    nanoScan.data = NULL
    nanoSingle.data = NULL
    Labview.data=NULL
@@ -111,6 +112,18 @@ server <- function(input, output,session) {
      setkey(ae51.data, timeint, runname)
    }
    
+   if(!is.null(input$cpc)){
+     cpc.data.list <- lapply(1:nrow(input$cpc), FUN = function(fileind) {
+       read.cpc(datafile=input$ae51[[fileind, "datapath"]], 
+                 runname = getrunname(input$cpc[[fileind, "name"]]),
+                 timeaverage = as.numeric(input$usertimav)/60,
+                 splineval= "missing" %in% input$dataoptions )
+     })
+     
+     cpc.data = rbindlist(cpc.data.list, fill=T)
+     setkey(cpc.data, timeint, runname)
+   }
+   
    if(!is.null(input$nanoScan)){
      nanoScan.data.list <- lapply(1:nrow(input$nanoScan), FUN = function(fileind) {
        read.nano.scan(datafile=input$nanoScan[[fileind, "datapath"]], 
@@ -165,6 +178,7 @@ server <- function(input, output,session) {
                 !is.null(ptrak.data), 
                 !is.null(ptrakscreen.data),
                 !is.null(ae51.data),
+                !is.null(cpc.data),
                 !is.null(nanoScan.data),
                 !is.null(nanoSingle.data),
                 !is.null(Labview.data),
@@ -176,12 +190,12 @@ server <- function(input, output,session) {
    }
    
    output <- Reduce(merge.all, list(gps.data, langan.data, ptrak.data, ptrakscreen.data,
-                                    ae51.data,
+                                    ae51.data,cpc.data,
                                     nanoScan.data, nanoSingle.data,
                                     Labview.data, filelog.data)[indexval])
    
    if("ksea" %in% input$dataoptions){
-     weatherdata <- get_ASOS(date_start=format(min(output$timeint), "%Y-%m-%d"),
+     weatherdata <- get_ASOS(date_start=format(min(output$timeint)-60*60*2, "%Y-%m-%d"),
                              date_end = format(max(output$timeint), "%Y-%m-%d"))
      setkey(weatherdata, timeint)
      
@@ -190,11 +204,40 @@ server <- function(input, output,session) {
    }
    
    if("missing" %in% input$dataoptions)
+   {
      
-     output[, (which(sapply(output, is.numeric))) :=
+     colnamesvals = names(which(sapply(output, is.numeric)))
+     
+     output[ ,(colnamesvals) :=
+               lapply(.SD, as.double), .SDcols=colnamesvals]
+     
+     output[, (colnamesvals) := 
+            lapply(.SD, FUN = function(x){
+       tempval= rep(NA, length(x))
+       if(is.finite(max(x,na.rm=T))) {
+       tempval = na.spline(x, na.rm=F, maxgap= Inf)
+       tempval[tempval>=max(x, na.rm=T)]= max(x, na.rm=T)
+       tempval[tempval<=min(x, na.rm=T)]= min(x, na.rm=T)
+       }
+       tempval[is.na(tempval)] = (-9999999)
+       tempval[!is.finite(tempval)] = (-9999999)
+       tempval
+            }),
+       .SDcols = colnamesvals, by=runname]
+     
+     output[output==-9999999] = NA
+     
+     if("drct" %in% colnames(output))
+     {
+       maxgapval =  1/as.numeric(input$usertimav)*60*80
+   weathervars = c("tmpf","relh","drct","sknt","alti","mslp","vsby")
+   
+   output[, (weathervars) :=
             lapply(.SD, function(x)
-       na.spline(x, na.rm=F, maxgap=10)),
-                   , .SDcols = which(sapply(output, is.numeric))]
+              na.spline(x, na.rm=F, maxgap= maxgapval)),
+          , .SDcols = weathervars]
+     }
+   }
    
    try(
    output[,pnc_diff := pnc_noscreen - pnc_screen],
@@ -204,6 +247,28 @@ server <- function(input, output,session) {
      output[,ratio := pnc_diff / BC],
      silent=T)
    
+   try({
+     
+     if(input$usertimav=="1"){
+       output[,timeint := as.POSIXct(timeint)]
+       # g <- data.table(timeint=seq(min(output$timeint), max(output$timeint), 1))
+       # setkey(g, timeint)
+       # setkey(output, timeint, runname)
+       # 
+       # output = output[g]
+       
+       output[, pnc_background := 
+                rollapply(pnc_noscreen, width = 30, FUN = function(x){
+                  quantile(x, 0.05, na.rm=T)
+                }, align='right', partial=F, fill=NA),
+              by=c("runname")]
+       output = output[!is.na(runname), ]
+     }
+   },
+   silent=T
+   )
+   
+   plotdata <<- output
    return(output)
    
    #add nano scan single mode (timestamp is the end of the interval) (DONE)
@@ -230,9 +295,38 @@ server <- function(input, output,session) {
     # input$file1 will be NULL initially. After the user selects
     # and uploads a file, head of that data file by default,
     # or all rows if selected, will be shown.
-    mydata <<- data()
+    mydata <- data()
     
-    return( mydata)
+    mydata <- as.data.table(mydata)
+    
+    transformcols = names(mydata)[unlist(mydata[,lapply(.SD, is.numeric)])]
+    
+    summdata <- mydata[,list(mean = lapply(.SD, FUN = function(x) round(mean(x, na.rm=T), input$sigs)),
+                             min = lapply(.SD, FUN = function(x) round(min(x, na.rm=T),input$sigs)),
+                             max = lapply(.SD, FUN = function(x) round(max(x, na.rm=T),input$sigs)),
+                             missing = lapply(.SD, FUN = function (x){sum(is.na(x))}),
+                             N = lapply(.SD, length)),
+                             by=runname,
+                       .SDcols = transformcols]
+    
+    
+    summdata$variable = transformcols
+    summdata = summdata[!variable %in% 
+                          c("timeint",
+                            "station",
+                            "lon",
+                            "lat",
+                            "sknt",
+                            "p01i",
+                            "alti",
+                            "mslp",
+                            "vsby",
+                            "skyc1","skyc2","skyc3","skyc4","skyl1",
+                            "skyl2","skyl3","skyl4","wxcodes","metar")]
+    
+    summdata=data.table(summdata)
+    
+    return(summdata)
     
   })
   
@@ -250,8 +344,18 @@ server <- function(input, output,session) {
   
   ranges <- reactiveValues(x = NULL, y = NULL)
   
+  # output$windRoseplot <- renderPlot({
+  #   
+  #   if("drct" %in% colnames(plotdata)){
+  #     
+  #     windRose(plotdata, 
+  #              ws = "ws", wd = "drct", bias.corr=T, cols="hue", type="runname")
+  #   } 
+  #   
+  # })
+  
   output$tsplot <- renderPlot({
-    df = data()
+    df = plotdata
 
     if (is.null(df)) {
 
@@ -269,28 +373,54 @@ server <- function(input, output,session) {
 
     } else  {
 
-      plotdata=data()
-
-      p1 <- ggplot(plotdata,
-                   aes(as.POSIXct(timeint), as.numeric(as.character(pnc_diff)), color=runname)) +
-        ylab( "Particle Count Difference (#/cc)" ) + xlab("Time") +
-        theme_light(12)
-
-     p1 <- p1 + geom_point(alpha =0.3, cex=2)  +
-        guides("",colour = guide_legend(override.aes = list(size=6))) +
-              
-       geom_segment(data = plotdata[seq(1,nrow(plotdata), by=60),],
-                     size = 3,
-                     aes(x = as.POSIXct(timeint),
-                         xend = as.POSIXct(timeint)+60*60,
-                         y = 10,
-                         yend = `drct`),
-                     arrow = arrow(length = unit(0.5, "cm")))
-     
-     p1 +   coord_x_datetime(xlim = (ranges$x))+
-       scale_y_continuous(limits = (ranges$y)) 
-        
+      plotdata=df
       
+      
+      rgb.palette <- colorRampPalette(c("red", "orange", "blue"),
+                                      space = "rgb")
+      
+      dateval= unlist(strsplit(unique(plotdata$runname),c("car1","car2","car3"))[1])
+      datevalplot = format(as.POSIXct(dateval, format="%Y%b%d"), "%b %d, %Y")
+      
+      carnames = gsub(dateval, "", unique(plotdata$runname))
+      
+      
+      p1 <- ggplot(plotdata,
+                   aes_string("timeint", as.character(input$tspoll), color="runname")) +
+        ylab( "Concentration" ) + xlab("Time") +
+        theme_light(16) +  
+        scale_color_manual(name = datevalplot,
+          labels = tools::toTitleCase(carnames),
+                          values = rgb.palette(length(unique(plotdata$runname)))) +
+        guides(colour = guide_legend(override.aes = list(size=12))) +
+        geom_line() + 
+        geom_point()+
+        scale_x_datetime(limits = (ranges$x))+
+        scale_y_continuous(limits = (ranges$y)) 
+     
+     if("drct" %in% colnames(plotdata))
+     {
+       
+       plotdata$windplottime = floor_date(plotdata$timeint, "15 minutes")
+       plotdata[duplicated(windplottime), windplottime := NA]
+       plotdata[!is.na(windplottime), windangleplot := drct]
+       yrangelower= ggplot_build(p1)$layout$panel_ranges[[1]]$y.range[2]
+       yrangeupper= yrangelower + mean(ggplot_build(p1)$layout$panel_ranges[[1]]$y.range)/3
+       
+       p1 = p1 + 
+         geom_rect(ymin = yrangelower, 
+                   ymax = yrangeupper, 
+                   xmin = -Inf, xmax = Inf, fill = 'grey') +
+         expand_limits(y = yrangeupper) +
+       geom_text(data=plotdata, inherit.aes=TRUE, 
+                      x= plotdata$windplottime,
+                      y=mean(yrangelower:yrangeupper),
+                      size=6,
+                      color="black",
+                      aes(angle=-plotdata$windangleplot + 90), label="←")
+        }
+     
+      p1
     }
 
   })
@@ -298,7 +428,7 @@ server <- function(input, output,session) {
   observeEvent(input$tsplot_dblclick, {
     brush <- input$tsplot_brush
     if (!is.null(brush)) {
-      ranges$x <- c(brush$xmin, brush$xmax)
+      ranges$x <- as.POSIXct(c(brush$xmin, brush$xmax), origin="1970-01-01")
       ranges$y <- c(brush$ymin, brush$ymax)
       
     } else {
@@ -312,7 +442,7 @@ server <- function(input, output,session) {
       paste("MOVUPdatamerge", ".csv", sep = "")
     },
     content = function(con) {
-      write.csv(data(), con, row.names = FALSE)
+      write.csv(plotdata, con, row.names = FALSE)
     }
   )
   
@@ -322,17 +452,44 @@ server <- function(input, output,session) {
   observe( {
     req(input$mergeButton)
     pollutant = input$pollmap
-    mapdata<-data.table(mydata)
+    
+    mapdata<-data.table(plotdata)
     mapdata$poll <- as.numeric(as.character(mapdata[[pollutant]]))
     if(!(input$pollmap %in% colnames(mapdata))) {
       leafletMap
     } else {
+    
     
     mapdata <- mapdata[!is.na(poll),]
     mapdata<-mapdata[,lon:=as.numeric(as.character(Longitude))]
     mapdata<-mapdata[,lat:=as.numeric(as.character(Latitude))]
     mapdata<-mapdata[!lon==0,]
     mapdata<-mapdata[!lat==0,]
+    
+    if(input$windangle == "north")
+    mapdata <- mapdata[drct >= 315 & drct <= 45,]
+    
+    if(input$windangle == "east")
+      mapdata <- mapdata[drct >= 45 & drct <= 135,]
+    
+    if(input$windangle == "south")
+      mapdata <- mapdata[drct >= 135 & drct <= 225,]
+    
+    if(input$windangle == "west")
+      mapdata <- mapdata[drct >= 225 & drct <= 315,]
+    
+    if(input$windangle == "all")
+      mapdata <- mapdata
+    
+    mapdata[, Lon.r := round(lon, 3)]
+    mapdata[, Lat.r := round(lat, 3)]
+    mapdata[, smooth_plotvar :=
+            lapply(.SD, function(x)
+              mean(x, na.rm=F)),
+          .SDcols = "poll",
+          by = c("Lon.r", "Lat.r", "runname")]
+    
+    
     leafletmap <-leafletProxy("map1", data=mapdata)
 
     leafletmap  %>% clearControls()
@@ -340,21 +497,24 @@ server <- function(input, output,session) {
     leafletmap %>% clearHeatmap()
 
 
-    palette_rev2 <- c("#0066b2","#00addd","#00e9a2","#f2cd00","#c69522","#9c5600","#62452c")
-    pal2 <- colorBin(palette_rev2, pretty=T, na.color ="lightgrey",
+    palette_rev1 <- c("#0066b2","#00addd","#00e9a2","#f2cd00","#c69522","#9c5600","#62452c")
+    pal1 <- colorBin(palette_rev1, pretty=T, na.color ="lightgrey",
                     c(min(mapdata$poll), max(mapdata$poll)))
+    
+    
+    
+    leafletmap %>%
+      addCircleMarkers(data=mapdata, ~Lon.r, ~Lat.r,
+                       radius = 1, opacity = .5,
+                       color = pal1(unlist(mapdata$poll)),
+                       group="November 8th 2017") %>%
+      addLegend("bottomleft", pal=pal1, 
+                values=mapdata, 
+                title="Concentration",
+                layerId="colorLegend",na.label = "No Data", opacity=1)  %>% 
+      setView(median(mapdata$lon, na.rm=T),median(mapdata$lat, na.rm=T), zoom=11) 
+    
 
-    leafletmap  %>%
-      addHeatmap(~lon, ~lat, radius = 3, intensity = mapdata$poll, gradient = pal2(mapdata$poll), blur = 2,
-                 data=mapdata, minOpacity=.1)  %>% 
-      setView(median(mapdata$lon, na.rm=T),median(mapdata$lat, na.rm=T), zoom=11)  %>%
-      leaflet::addLegend("topleft", pal=pal2, values=mapdata$poll, title=pollutant,
-              layerId="colorLegend",na.label = "No Data", opacity=1)
-      # 
-      # addCircleMarkers(~lon, ~lat , radius=7,
-      #                  stroke=T, weight=1.2, opacity=.6,
-      #                  #fillColor = pal2(mapdata[pollutant]),
-      #                  fillOpacity=.3, group=~runname)#%>%
     }
 
     

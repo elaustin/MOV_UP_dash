@@ -45,9 +45,10 @@ shinyUI(navbarPage("MOV-UP Data Import", id="nav",
                                       fileInput("ptrakscreen", "Select P-TRAK data file (with screen)",
                                                 multiple = TRUE,
                                                 accept = c(".txt")),
-                                      fileInput("ae51", "Select AE51 BC", accept=c(".dat")),
-                                      fileInput("nanoScan", "Select NanoScan Scan Mode", accept=c(".csv")),
-                                      fileInput("nanoSingle", "Select NanoScan Single Channel Mode", accept=c(".csv")),
+                                      fileInput("ae51", "Select AE51 BC", accept=c(".dat"), multiple=T),
+                                      fileInput("cpc", "Select CPC", accept=c(".csv"), multiple=T),
+                                      fileInput("nanoScan", "Select NanoScan Scan Mode", multiple=T, accept=c(".csv")),
+                                      fileInput("nanoSingle", "Select NanoScan Single Channel Mode",multiple=T, accept=c(".csv")),
                                       fileInput("Labview", "Select Labview", accept=c(".txt")),
                                       fileInput("filelog", "Insert Operator Log File", accept=c(".csv")),
                                       
@@ -82,7 +83,7 @@ shinyUI(navbarPage("MOV-UP Data Import", id="nav",
                                     
                                     # Main panel for displaying outputs ----
                                     mainPanel(
-                                      
+                                      sliderInput("sigs","Significant Digits",  0,10, value=2),
                                       # Output: Data file ----
                                       dataTableOutput("contents")
                                       
@@ -92,17 +93,23 @@ shinyUI(navbarPage("MOV-UP Data Import", id="nav",
                             )
                    ),
                    
-                   tabPanel(strong("Data Visualizer"),
+                   tabPanel(strong("Time Series Plots"),
                             div(class = "outer",
                                 fluidPage(
                                   titlePanel("Data Plots"),
                                   sidebarLayout(
                                     sidebarPanel(
                                       
-                                    
-                                      # selectInput("colors", "Color Scheme",
-                                      #             rownames(subset(brewer.pal.info, category %in% c("seq", "div"))),
-                                      # checkboxInput("legend", "Show legend", TRUE)
+                                      radioButtons("tspoll",label=h4("Select Pollutant to Plot"),
+                                                  choices = c("CO Langan" = "CO",
+                                                              "P-TRAK No Screen" = "pnc_noscreen",
+                                                              "P-TRAK Screen" = "pnc_screen",
+                                                              "P-TRAK Diff" = "pnc_diff",
+                                                              "P-TRAK Background" = "pnc_background",
+                                                              "NanoScan 11.5" = "`11.5`",
+                                                              "NanoScan 15.4" = "`15.4`",
+                                                              "NanoScan 36.5" = "`36.5`"),
+                                                  selected=NULL)
                                       
                                       
                                     ),
@@ -121,6 +128,15 @@ shinyUI(navbarPage("MOV-UP Data Import", id="nav",
                             )
                    ),
                    
+                   tabPanel(strong("Wind Rose Plots"),
+                            div(class = "outer",
+                                fluidPage(
+                                  titlePanel("Data Plots"),
+                                  
+                                  mainPanel(plotOutput("windRoseplot", height = 400))
+                                  
+                                ))),
+                   
                    tabPanel(strong("GPS Track"),
                             div(class = "outer",
                                 fluidPage(
@@ -131,7 +147,14 @@ shinyUI(navbarPage("MOV-UP Data Import", id="nav",
                                                   choices = c("CO Langan" = "CO",
                                                               "P-TRAK No Screen" = "pnc_noscreen",
                                                               "P-TRAK Screen" = "pnc_screen",
-                                                              "P-TRAK Diff" = "pnc_diff"), selected = "CO")
+                                                              "P-TRAK Diff" = "pnc_diff",
+                                                              "P-TRAK Background" = "pnc_background"), selected = NULL),
+                                      selectInput(inputId="windangle","Select Wind Direction",
+                                                  choices = c("All Wind" = "all",
+                                                              "Northerly Wind (315 - 45 degrees)"= "north",
+                                                              "Easterly Wind (45 - 135 degrees)" = "east",
+                                                              "Southerly Wind (135 - 225)" = "south",
+                                                              "Westerly Wind (225 - 315)" = "west"))
                                     ),
                                     mainPanel(
                                   leafletOutput("map1")

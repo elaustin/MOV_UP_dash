@@ -9,6 +9,7 @@
 #for the ptrack, how do you select 
 #CPC add multiple files at the same time
 #add maxgap value
+#for AE51 allow for repeated values
 
 
 gpsfilename<-"C:\\Users\\Johnathan\\OneDrive\\Documents\\UW Postdoc\\MOVUP\\Oct 31\\Air monitor GPS 2017Oct31 airportN,Mgnsn.csv"
@@ -93,10 +94,11 @@ read.langan <- function(datafile, runname, timeaverage, splineval = T) {
 
 read.ptrak <- function(datafile, runname, timeaverage, screen=F,  splineval = T) {
   
-  dt <- fread(datafile, skip=30)
+  dt <- data.table(read.csv(datafile, skip=30))
   pncname = ifelse(screen, "pnc_screen","pnc_noscreen")
   colnames(dt) = c("Date", "Time", pncname)
   dt[, datetime.ptrak := as.POSIXct(paste0(Date,Time), format="%m/%d/%Y %T", tz="America/Los_Angeles")]
+  dt = dt[!is.na(datetime.ptrak)]
   dt[, runname := runname]
   dt[, Date:= NULL]
   dt[, Time := NULL]
@@ -121,6 +123,44 @@ read.ptrak <- function(datafile, runname, timeaverage, screen=F,  splineval = T)
   
   return(dt)
 }
+
+read.cpc <- function(datafile, runname, timeaverage,  splineval = T) {
+  
+  dt <- data.table(read.csv(datafile,sep=",", header=F))
+  startdate = as.POSIXct(unlist(dt[4,2]), format="%m/%d/%y", tz="America/Los_Angeles")
+  
+  colnames(dt)[1] = "Time"
+  colnames(dt)[2] = "Concentration (#/cc)"
+  
+  dt[,Time := as.POSIXct(paste(startdate, Time), format="%Y-%m-%d %H:%M:%S")]
+  
+  dt = dt[!is.na(Time),]
+  
+  dt = dt[,1:2,with=FALSE]
+  
+  dt[, runname := runname]
+  #get Correct time average
+  
+  setnames(dt, "Time", "datetime.cpc")
+  
+  
+  dt[,timeint := averageTime(datetime.cpc, timeaverage)]
+  
+  dt = 
+    dt[,lapply(.SD, mean), by=c("timeint","runname"), 
+       .SDcols=c("Concentration (#/cc)")]
+  
+  if(splineval) {
+    
+    transcol = c("Concentration (#/cc)")
+    dt[, (transcol)  := 
+         lapply(.SD, function(x)
+           na.spline(x, na.rm=F )), .SDcols = transcol ]
+  }
+  
+  return(dt)
+}
+
 
 read.ae51 <- function(datafile, runname, timeaverage,  splineval = T) {
   
@@ -243,23 +283,25 @@ read.nano.scan <- function(datafile, runname, timeaverage, splineval=T) {
   #get Correct time average
   
   
-  dt[,timeint := averageTime(datetime.nano.scan, timeaverage, splineval=T)]
+  dt[,timeint := averageTime(datetime.nano.scan, timeaverage)]
   
   dt = 
     dt[,lapply(.SD, mean), by=c("timeint","runname","Status")]
-  
+
   if(splineval) {
-    
+
     transcol = c("15.4","20.5","27.4","36.5","48.7","64.9",
                  "86.6","115.5","154.0","205.4","273.8","365.2" ,
                  "Total Conc", "Median (nm)","Mean (nm)",
                  "Geo Mean (nm)", "Mode (nm)", "GSD",
                  "Particle Density (g/cc)")
-    dt[, (transcol)  := 
+    dt[, (transcol)  :=
          lapply(.SD, function(x)
-           na.spline(x, na.rm=F)), .SDcols = transcol ]
+           na.spline(x, na.rm=F)),
+       .SDcols = transcol ]
   }
-  
+
+  dt[,timeint := as.POSIXct(timeint)]
   return(dt)
 }
 
@@ -326,4 +368,14 @@ read.nano.single <- function(datafile, runname, timeaverage, splineval=T) {
   
   
   return(dt)
+}
+
+#round data.table
+round_df <- function(df.table, digits) {
+  
+  nums <- names(df.table)[unlist(df.table[,lapply(.SD, is.numeric)])]
+  
+  df.table[, (nums = lapply(.SD, round, digits)), .SDcols=nums]
+  
+  df.table
 }
