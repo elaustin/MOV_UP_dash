@@ -12,6 +12,11 @@
 #for AE51 allow for repeated values
 
 
+makenum <- function(x) {
+  as.numeric(as.character(x))
+}
+
+
 gpsfilename<-"C:\\Users\\Johnathan\\OneDrive\\Documents\\UW Postdoc\\MOVUP\\Oct 31\\Air monitor GPS 2017Oct31 airportN,Mgnsn.csv"
 
 
@@ -56,7 +61,7 @@ read.gps <- function(datafile, runname, timeaverage, splineval = T) {
     transcol = c("Latitude","Longitude","Altitude (m)","Speed (km/hr)")
     dt[, (transcol)  := 
          lapply(.SD, function(x)
-           na.spline(x, na.rm=F)), .SDcols = transcol ]
+           na.approx(x, na.rm=F, rule=1)), .SDcols = transcol ]
   }
   
 
@@ -87,7 +92,7 @@ read.langan <- function(datafile, runname, timeaverage, splineval = T) {
     transcol = c("CO","TempC")
     dt[, (transcol)  := 
          lapply(.SD, function(x)
-           na.spline(x, na.rm=F)), .SDcols = transcol ]
+           na.approx(x, na.rm=F, rule=1)), .SDcols = transcol ]
   }
   return(dt)
 }
@@ -118,7 +123,7 @@ read.ptrak <- function(datafile, runname, timeaverage, screen=F,  splineval = T)
     transcol = c(pncname)
     dt[, (transcol)  := 
          lapply(.SD, function(x)
-           na.spline(x, na.rm=F)), .SDcols = transcol ]
+           na.approx(x, na.rm=F, rule=1)), .SDcols = transcol ]
   }
   
   return(dt)
@@ -147,7 +152,9 @@ read.cpc <- function(datafile, runname, timeaverage,  splineval = T) {
   dt[,timeint := averageTime(datetime.cpc, timeaverage)]
   
   dt = 
-    dt[,lapply(.SD, mean), by=c("timeint","runname"), 
+    dt[,lapply(.SD, FUN = function(x) {
+      mean(as.numeric(as.character(x)), na.rm=T)}), 
+      by=c("timeint","runname"), 
        .SDcols=c("Concentration (#/cc)")]
   
   if(splineval) {
@@ -155,7 +162,7 @@ read.cpc <- function(datafile, runname, timeaverage,  splineval = T) {
     transcol = c("Concentration (#/cc)")
     dt[, (transcol)  := 
          lapply(.SD, function(x)
-           na.spline(x, na.rm=F )), .SDcols = transcol ]
+           na.approx(x, na.rm=F,rule=1 )), .SDcols = transcol ]
   }
   
   return(dt)
@@ -179,13 +186,17 @@ read.ae51 <- function(datafile, runname, timeaverage,  splineval = T) {
        .SDcols=c("Ref","Sen","ATN","Flow","PCB.temp","Status","Battery",
                  "BC")]
   
+  #remove leading NA
+  dt[, .SD[!!cumsum(!is.na(BC))], by = "runname"]
+  
   if(splineval) {
     
     transcol = c("Ref","Sen","ATN","Flow","PCB.temp","Status","Battery",
                  "BC")
     dt[, (transcol)  := 
          lapply(.SD, function(x)
-           na.spline(x, na.rm=F )), .SDcols = transcol ]
+           
+           na.approx(x, na.rm=F,rule = 1)), .SDcols = transcol ]
   }
   
   return(dt)
@@ -266,7 +277,7 @@ read.labview <- function(datafile, runname, timeaverage) {
     transcol = num.labview
     dt[, (transcol)  := 
          lapply(.SD, function(x)
-           na.spline(x, na.rm=F)), .SDcols = transcol ]
+           na.approx(x, na.rm=F, rule=1)), .SDcols = transcol ]
   }
   
   return(dt)
@@ -297,7 +308,7 @@ read.nano.scan <- function(datafile, runname, timeaverage, splineval=T) {
                  "Particle Density (g/cc)")
     dt[, (transcol)  :=
          lapply(.SD, function(x)
-           na.spline(x, na.rm=F)),
+           na.approx(x, na.rm=F, rule=1)),
        .SDcols = transcol ]
   }
 
@@ -363,7 +374,7 @@ read.nano.single <- function(datafile, runname, timeaverage, splineval=T) {
     transcol = c("single channel number/cc")
     dt[, (transcol)  := 
          lapply(.SD, function(x)
-           na.spline(x, na.rm=F)), .SDcols = transcol ]
+           na.approx(x, na.rm=F, rule=1)), .SDcols = transcol ]
   }
   
   
