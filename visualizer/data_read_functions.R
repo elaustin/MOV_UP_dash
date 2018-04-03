@@ -11,6 +11,9 @@
 #add maxgap value
 #for AE51 allow for repeated values
 
+library(pacman)
+p_load("tools")
+
 
 makenum <- function(x) {
   as.numeric(as.character(x))
@@ -99,7 +102,7 @@ read.langan <- function(datafile, runname, timeaverage, splineval = T) {
 
 read.ptrak <- function(datafile, runname, timeaverage, screen=F,  splineval = T) {
   
-  dt <- data.table(read.csv(datafile, skip=30))
+  dt <- fread(datafile, skip="MM/dd/yyyy")
   pncname = ifelse(screen, "pnc_screen","pnc_noscreen")
   colnames(dt) = c("Date", "Time", pncname)
   dt[, datetime.ptrak := as.POSIXct(paste0(Date,Time), format="%m/%d/%Y %T", tz="America/Los_Angeles")]
@@ -171,7 +174,14 @@ read.cpc <- function(datafile, runname, timeaverage,  splineval = T) {
 
 read.ae51 <- function(datafile, runname, timeaverage,  splineval = T) {
   
+  if(file_ext(datafile) =="dat")
+  {
   dt <- data.table(read.table(datafile,sep=";", skip=15, header=T))
+  }
+  if(file_ext(datafile) =="csv")
+  {
+    dt <- data.table(read.csv(datafile, sep=",", skip=15))
+  }
   dt[, datetime.ae51 := as.POSIXct(paste0(Date,`Time`), tz="America/Los_Angeles")]
   dt[, runname := runname]
   dt[,Date:= NULL]
@@ -337,8 +347,8 @@ read.nano.single <- function(datafile, runname, timeaverage, splineval=T) {
                                          as.character(timecorr$Time)), tz="America/Los_Angeles")]
   
   if(ncol(timecorr)>1){
-  dt[`Time elapsed`=="Date", iteration := (2:(ncol(timecorr)))]
-  timecorr$iteration = 1:ncol(timecorr)
+  dt[`Time elapsed`=="Date", iteration := as.double((2:(nrow(timecorr))))]
+  timecorr$iteration = 1:nrow(timecorr)
   }
   
   dt[,iteration := na.locf(iteration)]

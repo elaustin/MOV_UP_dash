@@ -6,7 +6,7 @@ options(shiny.maxRequestSize = 20*1024^2)
 
 # Create the map
 
-server <- function(input, output,session) {
+server <- function(input, output,session=session) {
   
   
   
@@ -26,10 +26,48 @@ server <- function(input, output,session) {
   })
   
  data <- eventReactive(input$mergeButton, { 
-    
-   #req(input$mergeButton)
-    #req(input$file1) ## ?req #  require that the input is available
-    #input$mergeButton
+   
+   inFile <- input$uploadfile
+   
+   filenamepaths <- as.character(inFile$datapath)
+  
+   filenames <- as.character(inFile$name)
+ 
+   gpsind = grep("GPS", filenames, value=F, ignore.case=T)
+   gpspath = filenamepaths[gpsind]
+   gpsfile = filenames[gpsind]
+
+   ptrakind = grep("PT", filenames, value=F)
+   ptracknoscreenind = ptrakind[grep("scrnd", filenames[ptrakind], invert=T, value=F, ignore.case=T)]
+   ptrackscreenind = ptrakind[grep("scrnd", filenames[ptrakind], value=F, ignore.case=T)]
+  
+   ptracknoscreen = filenamepaths[ptracknoscreenind]
+   ptracknoscreenfile = filenames[ptracknoscreenind]
+   print(ptracknoscreenfile)
+   
+   ptrackscreen = filenamepaths[ptrackscreenind]
+   ptrackscreenfile = filenames[ptrackscreenind]
+   print(ptrackscreenfile)
+   
+   ae51ind = grep("AE51", filenames, value=F, ignore.case=T)
+   ae51path = filenamepaths[ae51ind]
+   ae51file = filenames[ae51ind]
+   
+   cpcind = grep("cpc", filenames, value=F, ignore.case=T)
+   cpcpath = filenamepaths[cpcind]
+   cpcfile = filenames[cpcind]
+   print(cpcpath)
+   print(cpcfile)
+   
+   scanind = grep("scan", filenames, value=F, ignore.case=T)
+   scanpath = filenamepaths[scanind]
+   scanfile = filenames[scanind]
+   
+   nanosingleind = grep("Size", filenames, value=F, ignore.case=T)
+   nanosingleind = nanosingleind[grep("VOID", filenames, value=F, ignore.case=T)]
+   nanosinglepath = filenamepaths[nanosingleind]
+   nanosinglefile = filenames[nanosingleind]
+   print(nanosinglepath)
    
    gps.data = NULL
    langan.data = NULL
@@ -43,37 +81,37 @@ server <- function(input, output,session) {
    filelog.data =NULL
    weatherdata = NULL
    
-    if(!is.null(input$gpsfile)){
-      gps.data.list <- lapply(1:nrow(input$gpsfile), FUN = function(fileind) {
-        read.gps(datafile=input$gpsfile[[fileind, "datapath"]], 
-                 runname = getrunname(input$gpsfile[[fileind, "name"]]),
-                 timeaverage = as.numeric(input$usertimav)/60,
-                 splineval= "missing" %in% input$dataoptions)
-      })
-      
-      gps.data = rbindlist(gps.data.list, fill=T)
-      setkey(gps.data, timeint, runname)
-    }
-      
-      if(!is.null(input$LanganCO)){
-        langan.data.list <- lapply(1:nrow(input$LanganCO), FUN = function(fileind) {
-          read.langan(datafile=input$LanganCO[[fileind, "datapath"]], 
+   if(!is.null(gpspath)){
+     gps.data.list <- lapply(1:length(gpspath), FUN = function(fileind) {
+       read.gps(datafile=gpspath[fileind],
+                runname = getrunname(gpsfile[fileind]),
+                timeaverage = as.numeric(input$usertimav)/60,
+                splineval= "missing" %in% input$dataoptions)
+     })
+     
+     gps.data = rbindlist(gps.data.list, fill=T)
+     setkey(gps.data, timeint, runname)
+   }
+   
+   if(!is.null(input$LanganCO)){
+     langan.data.list <- lapply(1:nrow(input$LanganCO), FUN = function(fileind) {
+       read.langan(datafile=input$LanganCO[[fileind, "datapath"]],
                    runname = getrunname(input$LanganCO[[fileind, "name"]]),
                    timeaverage = as.numeric(input$usertimav)/60,
                    splineval= "missing" %in% input$dataoptions )
-        })
-        
-       langan.data = rbindlist(langan.data.list, fill=T)
-       setkey(langan.data, timeint, runname)
-      }
+     })
+     
+     langan.data = rbindlist(langan.data.list, fill=T)
+     setkey(langan.data, timeint, runname)
+   }
    
-   if(!is.null(input$ptrak)){
-     ptrak.data.list <- lapply(1:nrow(input$ptrak), FUN = function(fileind) {
-       read.ptrak(datafile=input$ptrak[[fileind, "datapath"]], 
-                runname = getrunname(input$ptrak[[fileind, "name"]]),
-                timeaverage = as.numeric(input$usertimav)/60,
-                screen = F,
-                splineval= "missing" %in% input$dataoptions )
+   if(!is.null(ptracknoscreen)){
+     ptrak.data.list <- lapply(1:length(ptracknoscreen), FUN = function(fileind) {
+       try(read.ptrak(datafile=ptracknoscreen[fileind],
+                      runname = getrunname(ptracknoscreenfile[fileind]),
+                      timeaverage = as.numeric(input$usertimav)/60,
+                      screen = F,
+                      splineval= "missing" %in% input$dataoptions ))
      })
      
      ptrak.data = rbindlist(ptrak.data.list, fill=T)
@@ -81,15 +119,12 @@ server <- function(input, output,session) {
      ptrak.data = ptrak.data[, lapply(.SD, mean) , by = c("timeint","runname")]
      
      setkey(ptrak.data, timeint, runname)
-     
-     
-  
    }
    
-   if(!is.null(input$ptrakscreen)){
-     ptrak.screen.data.list <- lapply(1:nrow(input$ptrakscreen), FUN = function(fileind) {
-       read.ptrak(datafile=input$ptrakscreen[[fileind, "datapath"]], 
-                  runname = getrunname(input$ptrakscreen[[fileind, "name"]]),
+   if(!is.null(ptrackscreen)){
+     ptrak.screen.data.list <- lapply(1:length(ptrackscreen), FUN = function(fileind) {
+       read.ptrak(datafile=ptrackscreen[fileind],
+                  runname = getrunname(ptrackscreenfile[fileind]),
                   timeaverage = as.numeric(input$usertimav)/60,
                   screen=T,
                   splineval= "missing" %in% input$dataoptions )
@@ -100,11 +135,11 @@ server <- function(input, output,session) {
      setkey(ptrakscreen.data, timeint, runname)
    }
    
-   if(!is.null(input$ae51)){
-     ae51.data.list <- lapply(1:nrow(input$ae51), FUN = function(fileind) {
-       read.ae51(datafile=input$ae51[[fileind, "datapath"]], 
-                  runname = getrunname(input$ae51[[fileind, "name"]]),
-                  timeaverage = as.numeric(input$usertimav)/60,
+   if(!is.null(ae51path)){
+     ae51.data.list <- lapply(1:length(ae51path), FUN = function(fileind) {
+       read.ae51(datafile=ae51path[fileind],
+                 runname = getrunname(ae51file[fileind]),
+                 timeaverage = as.numeric(input$usertimav)/60,
                  splineval= "missing" %in% input$dataoptions )
      })
      
@@ -112,47 +147,48 @@ server <- function(input, output,session) {
      setkey(ae51.data, timeint, runname)
    }
    
-   if(!is.null(input$cpc)){
-     cpc.data.list <- lapply(1:nrow(input$cpc), FUN = function(fileind) {
-       read.cpc(datafile=input$ae51[[fileind, "datapath"]], 
-                 runname = getrunname(input$cpc[[fileind, "name"]]),
-                 timeaverage = as.numeric(input$usertimav)/60,
-                 splineval= "missing" %in% input$dataoptions )
+   
+   if(!is.null(cpcpath)){
+     cpc.data.list <- lapply(1:length(cpcpath), FUN = function(fileind) {
+       read.cpc(datafile=cpcpath[fileind],
+                runname = getrunname(cpcfile[fileind]),
+                timeaverage = as.numeric(input$usertimav)/60,
+                splineval= "missing" %in% input$dataoptions )
      })
      
      cpc.data = rbindlist(cpc.data.list, fill=T)
      setkey(cpc.data, timeint, runname)
    }
    
-   if(!is.null(input$nanoScan)){
-     nanoScan.data.list <- lapply(1:nrow(input$nanoScan), FUN = function(fileind) {
-       read.nano.scan(datafile=input$nanoScan[[fileind, "datapath"]], 
-                 runname = getrunname(input$nanoScan[[fileind, "name"]]),
-                 timeaverage = as.numeric(input$usertimav)/60,
-                 splineval= "missing" %in% input$dataoptions)
+   if(!is.null(scanpath)){
+     nanoScan.data.list <- lapply(1:length(scanpath), FUN = function(fileind) {
+       read.nano.scan(datafile=scanpath[fileind],
+                      runname = getrunname(scanfile[fileind]),
+                      timeaverage = as.numeric(input$usertimav)/60,
+                      splineval= "missing" %in% input$dataoptions)
      })
      
      nanoScan.data = rbindlist(nanoScan.data.list, fill=T)
      setkey(nanoScan.data, timeint, runname)
    }
    
-   if(!is.null(input$nanoSingle)){
-     nanoSingle.data.list <- lapply(1:nrow(input$nanoSingle), FUN = function(fileind) {
-       read.nano.single(datafile=input$nanoSingle[[fileind, "datapath"]], 
-                 runname = getrunname(input$nanoSingle[[fileind, "name"]]),
-                 timeaverage = as.numeric(input$usertimav)/60,
-                 splineval= "missing" %in% input$dataoptions)
+   if(!length(nanosinglepath)==0){
+     nanoSingle.data.list <- lapply(1:length(nanosinglepath), FUN = function(fileind) {
+       read.nano.single(datafile=nanosinglepath[fileind],
+                        runname = getrunname(nanosinglefile[fileind]),
+                        timeaverage = as.numeric(input$usertimav)/60,
+                        splineval= "missing" %in% input$dataoptions)
      })
-     
+
      nanoSingle.data = rbindlist(nanoSingle.data.list, fill=T)
      setkey(nanoSingle.data, timeint, runname)
    }
    
    if(!is.null(input$Labview)){
      Labview.data.list <- lapply(1:nrow(input$Labview), FUN = function(fileind) {
-       read.labview(datafile=input$Labview[[fileind, "datapath"]], 
-                        runname = getrunname(input$Labview[[fileind, "name"]]),
-                        timeaverage = as.numeric(input$usertimav)/60,
+       read.labview(datafile=input$Labview[[fileind, "datapath"]],
+                    runname = getrunname(input$Labview[[fileind, "name"]]),
+                    timeaverage = as.numeric(input$usertimav)/60,
                     splineval= "missing" %in% input$dataoptions)
      })
      
@@ -162,7 +198,7 @@ server <- function(input, output,session) {
    
    if(!is.null(input$filelog)){
      filelog.data.list <- lapply(1:nrow(input$filelog), FUN = function(fileind) {
-       read.ptrak(datafile=input$filelog[[fileind, "datapath"]], 
+       read.ptrak(datafile=input$filelog[[fileind, "datapath"]],
                   runname = getrunname(input$filelog[[fileind, "name"]]),
                   timeaverage = as.numeric(input$usertimav)/60,
                   splineval= "missing" %in% input$dataoptions)
@@ -174,8 +210,8 @@ server <- function(input, output,session) {
    
    
    indexval = c(!is.null(gps.data),
-                !is.null(langan.data), 
-                !is.null(ptrak.data), 
+                !is.null(langan.data),
+                !is.null(ptrak.data),
                 !is.null(ptrakscreen.data),
                 !is.null(ae51.data),
                 !is.null(cpc.data),
@@ -183,7 +219,7 @@ server <- function(input, output,session) {
                 !is.null(nanoSingle.data),
                 !is.null(Labview.data),
                 !is.null(filelog.data)
-                )
+   )
    
    merge.all <- function(x, y) {
      merge(x, y, all=TRUE)
@@ -196,7 +232,7 @@ server <- function(input, output,session) {
    
    if("ksea" %in% input$dataoptions){
      weatherdata <- get_ASOS(date_start=format(min(output$timeint)-60*60*2, "%Y-%m-%d"),
-                             date_end = format(max(output$timeint), "%Y-%m-%d"))
+                             date_end = format(max(output$timeint)+60*60*24, "%Y-%m-%d"))
      setkey(weatherdata, timeint)
      
      output = weatherdata[output]
@@ -211,37 +247,37 @@ server <- function(input, output,session) {
      output[ ,(colnamesvals) :=
                lapply(.SD, as.double), .SDcols=colnamesvals]
      
-     output[, (colnamesvals) := 
-            lapply(.SD, FUN = function(x){
-       tempval= rep(NA, length(x))
-       if(is.finite(max(x,na.rm=T))) {
-       tempval = na.spline(x, na.rm=F, maxgap= Inf)
-       tempval[tempval>=max(x, na.rm=T)]= max(x, na.rm=T)
-       tempval[tempval<=min(x, na.rm=T)]= min(x, na.rm=T)
-       }
-       tempval[is.na(tempval)] = (-9999999)
-       tempval[!is.finite(tempval)] = (-9999999)
-       tempval
-            }),
-       .SDcols = colnamesvals, by=runname]
+     output[, (colnamesvals) :=
+              lapply(.SD, FUN = function(x){
+                tempval= rep(NA, length(x))
+                if(is.finite(max(x,na.rm=T))) {
+                  tempval = na.approx(x, na.rm=F, maxgap= Inf, rule=1)
+                  tempval[tempval>=max(x, na.rm=T)]= max(x, na.rm=T)
+                  tempval[tempval<=min(x, na.rm=T)]= min(x, na.rm=T)
+                }
+                tempval[is.na(tempval)] = (-9999999)
+                tempval[!is.finite(tempval)] = (-9999999)
+                tempval
+              }),
+            .SDcols = colnamesvals, by=runname]
      
      output[output==-9999999] = NA
      
      if("drct" %in% colnames(output))
      {
        maxgapval =  1/as.numeric(input$usertimav)*60*80
-   weathervars = c("tmpf","relh","drct","sknt","alti","mslp","vsby")
-   
-   output[, (weathervars) :=
-            lapply(.SD, function(x)
-              na.spline(x, na.rm=F, maxgap= maxgapval)),
-          , .SDcols = weathervars]
+       weathervars = c("tmpf","relh","drct","sknt","alti","mslp","vsby")
+       
+       output[, (weathervars) :=
+                lapply(.SD, function(x)
+                  na.approx(x, na.rm=F, maxgap= maxgapval, rule=1)),
+              , .SDcols = weathervars]
      }
    }
    
    try(
-   output[,pnc_diff := pnc_noscreen - pnc_screen],
-   silent=T)
+     output[,pnc_diff := pnc_noscreen - pnc_screen],
+     silent=T)
    
    try(
      output[,ratio := pnc_diff / BC],
@@ -254,10 +290,10 @@ server <- function(input, output,session) {
        # g <- data.table(timeint=seq(min(output$timeint), max(output$timeint), 1))
        # setkey(g, timeint)
        # setkey(output, timeint, runname)
-       # 
+       #
        # output = output[g]
        
-       output[, pnc_background := 
+       output[, pnc_background :=
                 rollapply(pnc_noscreen, width = 30, FUN = function(x){
                   quantile(x, 0.05, na.rm=T)
                 }, align='right', partial=F, fill=NA),
@@ -267,6 +303,8 @@ server <- function(input, output,session) {
    },
    silent=T
    )
+   
+   output = output[!is.na(runname) & !is.na(Longitude)]
    
    plotdata <<- output
    return(output)
